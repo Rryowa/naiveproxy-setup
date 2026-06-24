@@ -9,6 +9,18 @@ fi
 HTML_DIR="/var/www/html"
 TEMPLATE_NAME="filecloud"          # the folder name inside sni-templates
 
+# ----- User Inputs -----
+read -p "Enter domain (e.g. proxy.example.com): " DOMAIN
+read -p "Enter email for TLS (e.g. user@example.com): " EMAIL
+read -p "Enter proxy username: " PROXY_USER
+read -s -p "Enter proxy password: " PROXY_PASS
+echo
+
+if [ -z "$DOMAIN" ] || [ -z "$EMAIL" ] || [ -z "$PROXY_USER" ] || [ -z "$PROXY_PASS" ]; then
+    echo "All fields are required. Exiting."
+    exit 1
+fi
+
 # ----- Update and install dependencies -----
 apt-get update
 apt-get install -y golang git libcap2-bin
@@ -129,18 +141,18 @@ net.core.somaxconn = 8192
 EOF
 
 # ----- Write Caddyfile with correct forward_proxy syntax -----
-cat << 'EOF' > /etc/caddy/Caddyfile
+cat << EOF > /etc/caddy/Caddyfile
 {
   order forward_proxy before file_server
   log {
     exclude http.log.error
   }
 }
-:443, 504529.senko.network {
-  tls rryowa@gmail.com
+:443, $DOMAIN {
+  tls $EMAIL
   encode
   forward_proxy {
-    basic_auth user pass
+    basic_auth $PROXY_USER $PROXY_PASS
     hide_ip
     hide_via
     probe_resistance
@@ -157,3 +169,4 @@ systemctl daemon-reload
 systemctl enable --now caddy
 
 echo "Installation complete with decoy site and performance tuning."
+echo "Config: nano /etc/caddy/Caddyfile"
