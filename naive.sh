@@ -144,7 +144,6 @@ cat << 'EOF' > /etc/caddy/Caddyfile
     hide_ip
     hide_via
     probe_resistance
-    buffer_size
   }
   file_server {
     root /var/www/html
