@@ -32,7 +32,6 @@ download_template() {
     local temp_dir="/tmp/decoy-template-$$"
     mkdir -p "$temp_dir" || return 1
 
-    # Sparse checkout of only the needed template folder
     git clone --filter=blob:none --sparse \
         "https://github.com/DigneZzZ/remnawave-scripts.git" "$temp_dir" || {
         rm -rf "$temp_dir"
@@ -47,7 +46,6 @@ download_template() {
 
     local source="$temp_dir/sni-templates/$template"
     if [ -d "$source" ]; then
-        # Clear old files (optional) and copy new ones
         rm -rf "$HTML_DIR"/*
         cp -r "$source"/* "$HTML_DIR/"
         local count
@@ -92,6 +90,31 @@ LimitNOFILE=1048576
 LimitNPROC=infinity
 EOF
 
+# ----- Create the systemd service unit for Caddy -----
+cat << 'EOF' > /etc/systemd/system/caddy.service
+[Unit]
+Description=Caddy
+Documentation=https://caddyserver.com/docs/
+After=network.target network-online.target
+Requires=network-online.target
+
+[Service]
+Type=notify
+User=caddy
+Group=caddy
+ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
+ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+LimitNPROC=infinity
+PrivateTmp=true
+ProtectSystem=full
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 # ----- Performance tuning: kernel parameters -----
 modprobe tcp_bbr 2>/dev/null || true
 cat << 'EOF' > /etc/sysctl.d/99-naiveproxy.conf
@@ -104,9 +127,8 @@ net.ipv4.tcp_slow_start_after_idle = 0
 net.ipv4.tcp_max_syn_backlog = 8192
 net.core.somaxconn = 8192
 EOF
-sysctl --system
 
-# ----- Write Caddyfile with performance options -----
+# ----- Write Caddyfile with correct forward_proxy syntax -----
 cat << 'EOF' > /etc/caddy/Caddyfile
 {
   order forward_proxy before file_server
@@ -136,4 +158,3 @@ systemctl daemon-reload
 systemctl enable --now caddy
 
 echo "Installation complete with decoy site and performance tuning."
-echo "Config: /etc/caddy/Caddyfile"
